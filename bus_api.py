@@ -6,6 +6,9 @@ from google.generativeai import configure, GenerativeModel
 from collections import deque
 from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi import Request, Form
+from fastapi.responses import PlainTextResponse
+from twilio.twiml.messaging_response import MessagingResponse
 
 # -------------------------
 # 1. Load .env config
@@ -120,6 +123,43 @@ app = FastAPI(title="Punjab Bus Assistant API")
 class ChatRequest(BaseModel):
     user_id: int = 1
     message: str
+
+
+
+@app.post("/whatsapp")
+async def whatsapp_webhook(
+    From: str = Form(...),
+    Body: str = Form(...)
+):
+    user_message = Body
+    user_id = 1  # You can map WhatsApp number -> user_id if needed
+
+    # Generate chatbot response using your existing functions
+    sql_query = generate_sql(user_message)
+    try:
+        cursor.execute(sql_query)
+        results = cursor.fetchall()
+    except Exception as e:
+        results = {"error": str(e)}
+
+    response_text = format_response(results, user_message)
+
+    # Save to memory + DB
+    chat_history.append((user_message, response_text))
+    insert_chat = """
+         INSERT INTO chatlogs (user_id, message_text, response_text, created_at)
+         VALUES (%s, %s, %s, %s)
+     """
+    cursor.execute(insert_chat, (user_id, user_message, response_text, datetime.datetime.now()))
+    db.commit()
+
+    # Twilio response
+    twilio_resp = MessagingResponse()
+    twilio_resp.message(response_text)
+
+    return PlainTextResponse(str(twilio_resp))
+
+
 
 @app.get("/")
 def root():
