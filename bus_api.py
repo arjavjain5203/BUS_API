@@ -126,38 +126,41 @@ class ChatRequest(BaseModel):
 
 
 
+from fastapi.responses import PlainTextResponse
+
 @app.post("/whatsapp")
 async def whatsapp_webhook(
-    From: str = Form(...),
-    Body: str = Form(...)
+    Body: str = Form(...), From: str = Form(...)
 ):
-    user_message = Body
-    user_id = 1  # You can map WhatsApp number -> user_id if needed
+    user_input = Body
+    user_id = 1
 
-    # Generate chatbot response using your existing functions
-    sql_query = generate_sql(user_message)
+    sql_query = generate_sql(user_input)
     try:
         cursor.execute(sql_query)
         results = cursor.fetchall()
     except Exception as e:
         results = {"error": str(e)}
 
-    response_text = format_response(results, user_message)
+    response_text = format_response(results, user_input)
 
-    # Save to memory + DB
-    chat_history.append((user_message, response_text))
+    # Save chat in DB
     insert_chat = """
-         INSERT INTO chatlogs (user_id, message_text, response_text, created_at)
-         VALUES (%s, %s, %s, %s)
-     """
-    cursor.execute(insert_chat, (user_id, user_message, response_text, datetime.datetime.now()))
+        INSERT INTO chatlogs (user_id, message_text, response_text, created_at)
+        VALUES (%s, %s, %s, %s)
+    """
+    cursor.execute(insert_chat, (user_id, user_input, response_text, datetime.datetime.now()))
     db.commit()
 
-    # Twilio response
-    twilio_resp = MessagingResponse()
-    twilio_resp.message(response_text)
+    # ✅ WhatsApp-friendly reply (just text, not XML)
+    beautified = (
+        f"🚌 *Punjab Bus Assistant*\n\n"
+        f"Here’s what I found for your query:\n\n"
+        f"{response_text}\n\n"
+        f"🚏 Thanks for using the service!"
+    )
 
-    return PlainTextResponse(str(twilio_resp))
+    return PlainTextResponse(content=beautified)
 
 
 
