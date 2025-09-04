@@ -121,6 +121,11 @@ class ChatRequest(BaseModel):
     user_id: int = 1
     message: str
 
+@app.get("/")
+def root():
+    return {"message": "Punjab Bus Assistant API is running 🚍"}
+
+
 @app.post("/chat")
 def chat_endpoint(req: ChatRequest):
     user_input = req.message
