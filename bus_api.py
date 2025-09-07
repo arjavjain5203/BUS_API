@@ -125,6 +125,40 @@ class ChatRequest(BaseModel):
     message: str
 
 
+from fastapi.responses import Response
+from twilio.twiml.messaging_response import MessagingResponse
+
+@app.post("/sms")
+async def sms_webhook(Body: str = Form(...), From: str = Form(...)):
+    user_input = Body
+    user_id = 1  # Later you can map to phone number
+
+    sql_query = generate_sql(user_input)
+    try:
+        cursor.execute(sql_query)
+        results = cursor.fetchall()
+    except Exception as e:
+        results = {"error": str(e)}
+
+    response_text = format_response(results, user_input)
+
+    # Save chat in DB
+    insert_chat = """
+        INSERT INTO chatlogs (user_id, message_text, response_text, created_at)
+        VALUES (%s, %s, %s, %s)
+    """
+    cursor.execute(insert_chat, (user_id, user_input, response_text, datetime.datetime.now()))
+    db.commit()
+
+    # Build Twilio SMS response
+    twilio_resp = MessagingResponse()
+    twilio_resp.message(
+        f"🚌 Punjab Bus Assistant\n\n{response_text}\n\n🚏 Reply with another query anytime!"
+    )
+
+    return Response(content=str(twilio_resp), media_type="application/xml")
+
+
 
 from fastapi.responses import PlainTextResponse
 
